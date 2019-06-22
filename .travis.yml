@@ -1,6 +1,10 @@
 language: rust
 os: linux
 cache: cargo
+addons:
+  apt:
+    packages:
+    - libnotify-dev
 
 script: make test doc
 
