@@ -1,0 +1,12 @@
+[package]
+authors = ["Nathan Ringo <remexre@gmail.com>"]
+edition = "2018"
+name = "stahlnet-relay"
+version = "0.1.0"
+
+[dependencies]
+libremexre = { features = ["log", "pretty_env_logger"], version = "0.1.11" }
+stahlnet = { path = ".." }
+structopt = "0.2.16"
+tokio = "0.1.21"
+tokio-signal = "0.2.7"
