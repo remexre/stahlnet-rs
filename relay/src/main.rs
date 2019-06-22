@@ -18,11 +18,13 @@ fn main() {
 }
 
 fn run(opts: Options) -> Result<()> {
-    let shutdown = ctrl_c()
-        .and_then(|stream| stream.into_future().map_err(|(e, _)| e))
-        .then(|_| Ok(()));
+    let mut server = Server::new(
+        opts.addr(),
+        ctrl_c()
+            .and_then(|stream| stream.into_future().map_err(|(e, _)| e))
+            .then(|_| Ok(())),
+    )?;
 
-    let mut server = Server::new(opts.addr(), shutdown)?;
     opts.peers
         .into_iter()
         .flat_map(|mut addr| match addr.to_socket_addrs() {
@@ -32,7 +34,6 @@ fn run(opts: Options) -> Result<()> {
                 match addr.to_socket_addrs() {
                     Ok(addrs) => addrs,
                     Err(_) => {
-                        addr.push_str(":51441");
                         log_err(&err);
                         Vec::new().into_iter()
                     }
