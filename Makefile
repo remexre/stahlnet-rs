@@ -1,6 +1,8 @@
 all: check doc build test
 build:
 	cargo build --all
+build-release:
+	cargo build --all --release
 check:
 	cargo check --all
 doc:
@@ -11,4 +13,4 @@ test:
 	cargo test --all --no-default-features -- --test-threads=1
 watch:
 	cargo watch -s $(MAKE)
-.PHONY: all build check doc test
+.PHONY: all build build-release check doc test

@@ -6,7 +6,7 @@ addons:
     packages:
     - libnotify-dev
 
-script: make test doc
+script: make test doc build-release
 
 deploy:
 - provider: pages
