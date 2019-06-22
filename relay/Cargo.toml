@@ -1,7 +1,12 @@
 [package]
-authors = ["Nathan Ringo <remexre@gmail.com>"]
+authors = ["Nathan Ringo <nathan@remexre.xyz>"]
+description = "A relay for StahlNet, written in Rust."
+documentation = "https://remexre.xyz/stahlnet-rs/"
 edition = "2018"
+homepage = "https://github.com/remexre/stahlnet-rs"
+license = "Apache-2.0/MIT"
 name = "stahlnet-relay"
+repository = "https://github.com/remexre/stahlnet-rs"
 version = "0.1.0"
 
 [dependencies]
