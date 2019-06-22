@@ -8,6 +8,7 @@ doc:
 	cp doc-index.html target/doc/index.html
 test:
 	cargo test --all -- --test-threads=1
+	cargo test --all --no-default-features -- --test-threads=1
 watch:
 	cargo watch -s $(MAKE)
 .PHONY: all build check doc test

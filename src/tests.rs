@@ -15,7 +15,7 @@ fn leak_check_queued() {
     server.set_queue_timeout(Duration::from_millis(500));
 
     let initial_state = format!("{:?}", server);
-    let task = server.spawn_task();
+    let task = server.spawn_task(None);
     for _ in 0..1000 {
         task.send_message(TaskID::rand(), MessageTypeID::PING, Vec::new())
             .unwrap();
@@ -39,11 +39,11 @@ fn leak_check_tasks() {
 
     let initial_state = format!("{:?}", server);
     for _ in 0..1000 {
-        drop(server.spawn_task());
+        drop(server.spawn_task(None));
     }
 
-    let a = server.spawn_task();
-    let b = server.spawn_task();
+    let a = server.spawn_task(None);
+    let b = server.spawn_task(None);
     a.send_message(b.id(), MessageTypeID::PING, Vec::new())
         .unwrap();
     drop(a);
@@ -65,7 +65,7 @@ fn queued_are_queued() {
     .unwrap();
 
     let initial_state = format!("{:?}", server);
-    let task = server.spawn_task();
+    let task = server.spawn_task(None);
     for _ in 0..1000 {
         task.send_message(TaskID::rand(), MessageTypeID::PING, Vec::new())
             .unwrap();

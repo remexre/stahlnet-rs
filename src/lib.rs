@@ -48,16 +48,20 @@ pub enum Error {
     /// An I/O error.
     Io(std::io::Error),
 
+    /// The server is shutting down.
+    #[display(fmt = "stahlnet::Server shutting down")]
+    ShuttingDown,
+
     /// An unexpected end of packet while parsing an incoming data packet.
-    #[display(fmt = "unexpected eof")]
+    #[display(fmt = "Unexpected EOF")]
     UnexpectedEof,
 
     /// A packet had trailing data.
-    #[display(fmt = "unexpected trailing data")]
+    #[display(fmt = "Unexpected trailing data")]
     UnexpectedTrailing,
 
     /// An unknown frame type was encountered.
-    #[display(fmt = "unknown frame type {:x}", _0)]
+    #[display(fmt = "Unknown frame type {:x}", _0)]
     UnknownFrameType(u8),
 }
 

@@ -1,3 +1,6 @@
+#[cfg(feature = "libnotify")]
+mod task_libnotify;
+
 use libremexre::errors::{log_err, Result};
 use stahlnet::Server;
 use std::{
@@ -42,11 +45,24 @@ fn run(opts: Options) -> Result<()> {
         })
         .for_each(|peer| server.add_peer(peer));
 
+    let mut tasks = Vec::new();
+
+    #[cfg(feature = "libnotify")]
+    for n in 0..opts.libnotify_tasks {
+        let handle = server.spawn_task(Some(format!("libnotify{}", n)));
+        tasks.push(Box::new(task_libnotify::new(handle)));
+    }
+
     let err = Arc::new(Mutex::new(None));
     let err_clone = err.clone();
-    tokio::run(server.map_err(move |err| {
-        *err_clone.lock().unwrap() = Some(err);
-    }));
+    tokio::run(
+        server
+            .join(future::join_all(tasks))
+            .map(drop)
+            .map_err(move |err| {
+                *err_clone.lock().unwrap() = Some(err);
+            }),
+    );
     let err = err.lock().unwrap().take();
     match err {
         Some(err) => Err(err.into()),
@@ -67,6 +83,11 @@ struct Options {
     /// The addresses of known peers.
     #[structopt(long = "peer")]
     peers: Vec<String>,
+
+    /// Spawns a libnotify task.
+    #[cfg(feature = "libnotify")]
+    #[structopt(long = "libnotify", parse(from_occurrences))]
+    libnotify_tasks: usize,
 
     /// Disables log output.
     #[structopt(short = "q", long = "quiet")]

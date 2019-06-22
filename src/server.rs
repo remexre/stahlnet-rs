@@ -12,6 +12,7 @@ use std::{
     fmt::{Debug, Formatter, Result as FmtResult},
     mem::replace,
     net::SocketAddr,
+    sync::Arc,
     time::{Duration, Instant},
 };
 use tokio::net::udp::{UdpFramed, UdpSocket};
@@ -34,7 +35,13 @@ pub struct Server {
     sock_send_fut:
         Option<Box<dyn Future<Item = SplitSink<UdpFramed<Codec>>, Error = Error> + Send>>,
     shutdown: Box<dyn Future<Item = (), Error = ()> + Send>,
-    tasks: HashMap<TaskID, UnboundedSender<(TaskID, MessageTypeID, Vec<u8>)>>,
+    tasks: HashMap<
+        TaskID,
+        (
+            Option<Arc<str>>,
+            UnboundedSender<(TaskID, MessageTypeID, Vec<u8>)>,
+        ),
+    >,
 }
 
 impl Server {
@@ -159,7 +166,7 @@ impl Server {
 
     /// Sends a message. This can be to and from a local or remote task.
     fn send_message(&mut self, from: TaskID, to: TaskID, msg_type: MessageTypeID, data: Vec<u8>) {
-        if let Some(chan) = self.tasks.get(&to) {
+        if let Some((_, chan)) = self.tasks.get(&to) {
             if let Err(err) = chan.unbounded_send((from, msg_type, data)) {
                 let data = err.into_inner().2;
                 self.send_message_remote(from, to, msg_type, data);
@@ -206,13 +213,15 @@ impl Server {
     }
 
     /// Spawns a task, returning a handle that can be used to refer to it.
-    pub fn spawn_task(&mut self) -> TaskHandle {
+    pub fn spawn_task(&mut self, name: Option<String>) -> TaskHandle {
         let id = TaskID::rand();
         let (send, recv) = unbounded();
-        drop(self.tasks.insert(id, send));
+        let name = name.map(Into::into);
+        drop(self.tasks.insert(id, (name.clone(), send)));
         self.broadcast(Frame::TaskHello(0, id));
         TaskHandle {
             id,
+            name,
             recv,
             send: self.chan_send.clone(),
         }

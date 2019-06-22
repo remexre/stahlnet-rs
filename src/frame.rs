@@ -18,13 +18,30 @@ impl Frame {
                 0 => Frame::PeerHello,
                 1 => Frame::PeerBye,
                 2 => {
+                    if buf.remaining() < 16 {
+                        return Err(Error::UnexpectedEof);
+                    }
                     let hops = buf.get_u64_le();
                     let task = buf.get_u64_le();
                     Frame::TaskHello(hops, task.into())
                 }
-                3 => Frame::TaskBye(buf.get_u64_le().into()),
-                4 => Frame::FindTask(buf.get_u64_le().into()),
+                3 => {
+                    if buf.remaining() < 8 {
+                        return Err(Error::UnexpectedEof);
+                    }
+                    Frame::TaskBye(buf.get_u64_le().into())
+                }
+                4 => {
+                    if buf.remaining() < 8 {
+                        return Err(Error::UnexpectedEof);
+                    }
+                    Frame::FindTask(buf.get_u64_le().into())
+                }
                 5 => {
+                    if buf.remaining() < 24 {
+                        return Err(Error::UnexpectedEof);
+                    }
+
                     let from = buf.get_u64_le();
                     let to = buf.get_u64_le();
                     let msg_type = buf.get_u64_le();

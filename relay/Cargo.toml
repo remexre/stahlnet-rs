@@ -5,8 +5,13 @@ name = "stahlnet-relay"
 version = "0.1.0"
 
 [dependencies]
+libnotify = { version = "1.0.3", optional = true }
 libremexre = { features = ["log", "pretty_env_logger"], version = "0.1.12" }
+log = "0.4.6"
 stahlnet = { path = ".." }
 structopt = "0.2.16"
 tokio = "0.1.21"
 tokio-signal = "0.2.7"
+
+[features]
+default = ["libnotify"]
