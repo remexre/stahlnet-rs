@@ -1,8 +1,21 @@
-language: rust
+language: minimal
 os: linux
-cache: cargo
+services:
+- docker
+cache:
+  bundler: true
+  directories:
+    - $HOME/docker
 
-script: make test doc
+before_install:
+- if [[ -e $HOME/docker/stahlnet-rs-builder.tgz ]]; then zcat $HOME/docker/stahlnet-rs-builder.tgz | docker load; fi
+- docker build -t remexre/stahlnet-rs-builder .travis
+
+script: docker run -v "$PWD:/code" --rm remexre/stahlnet-rs-builder make doc test build-release
+
+before_cache:
+- mkdir -p $HOME/docker
+- docker save remexre/stahlnet-rs-builder $(docker history -q remexre/stahlnet-rs-builder | grep -v missing) | gzip > $HOME/docker/stahlnet-rs-builder.tgz
 
 deploy:
 - provider: pages
@@ -12,4 +25,9 @@ deploy:
   keep-history: false
   on:
     branch: master
-skip_cleanup: true
+- provider: releases
+  api_key: $GITHUB_TOKEN
+  file: target/release/stahlnet-relay
+  on:
+    tags: true
+  skip_cleanup: true
