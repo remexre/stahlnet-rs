@@ -16,4 +16,10 @@ deploy:
   keep-history: false
   on:
     branch: master
+- provider: releases
+  api_key: $GITHUB_TOKEN
+  file: target/release/stahlnet-relay
+  on:
+    tags: true
+  skip_cleanup: true
 skip_cleanup: true
