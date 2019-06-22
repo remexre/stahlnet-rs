@@ -2,9 +2,8 @@ language: rust
 os: linux
 cache: cargo
 
-script: cargo test --all
+script: make test doc
 
-before_deploy: cargo doc --all
 deploy:
 - provider: pages
   skip-cleanup: true

@@ -6,6 +6,7 @@ use std::{
 };
 use structopt::StructOpt;
 use tokio::prelude::*;
+use tokio_signal::ctrl_c;
 
 fn main() {
     let opts = Options::from_args();
@@ -17,7 +18,11 @@ fn main() {
 }
 
 fn run(opts: Options) -> Result<()> {
-    let mut server = Server::new(opts.addr())?;
+    let shutdown = ctrl_c()
+        .and_then(|stream| stream.into_future().map_err(|(e, _)| e))
+        .then(|_| Ok(()));
+
+    let mut server = Server::new(opts.addr(), shutdown)?;
     opts.peers
         .into_iter()
         .flat_map(|mut addr| match addr.to_socket_addrs() {

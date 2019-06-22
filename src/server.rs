@@ -1,18 +1,16 @@
 use crate::{codec::Codec, frame::Frame, Error, MessageTypeID, TaskHandle, TaskID};
-use derivative::Derivative;
 use futures::{
-    future::ok,
+    future::{empty, ok},
     prelude::*,
     stream::{SplitSink, SplitStream},
-    sync::{
-        mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
-        oneshot::{channel, Receiver, Sender},
-    },
+    sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender},
 };
 use libremexre::{errors::log_err, futures::send_to_sink};
-use log::trace;
+use log::{error, trace};
 use std::{
     collections::{HashMap, HashSet},
+    fmt::{Debug, Formatter, Result as FmtResult},
+    mem::replace,
     net::SocketAddr,
     time::{Duration, Instant},
 };
@@ -23,57 +21,52 @@ use tokio_timer::Delay;
 ///
 /// **WARNING**: This performs blocking I/O on drop unless the `.set_send_peer_bye(false)` method
 /// is called.
-#[derive(Derivative)]
-#[derivative(Debug)]
 pub struct Server {
     addr: SocketAddr,
     chan_recv: UnboundedReceiver<Frame>,
     chan_send: UnboundedSender<Frame>,
     peers: HashSet<SocketAddr>,
+    queue_timeout: Duration,
     queued_messages: HashMap<TaskID, Vec<(Delay, TaskID, MessageTypeID, Vec<u8>)>>,
     routes: HashMap<TaskID, (u64, SocketAddr)>,
     send_peer_bye: bool,
     sock_recv: SplitStream<UdpFramed<Codec>>,
-    #[derivative(Debug = "ignore")]
     sock_send_fut:
         Option<Box<dyn Future<Item = SplitSink<UdpFramed<Codec>>, Error = Error> + Send>>,
-    stop_recv: Receiver<()>,
-    stop_send: Sender<()>,
+    shutdown: Box<dyn Future<Item = (), Error = ()> + Send>,
     tasks: HashMap<TaskID, UnboundedSender<(TaskID, MessageTypeID, Vec<u8>)>>,
 }
 
 impl Server {
     /// Creates a new server listening on the given address.
-    pub fn new(addr: SocketAddr) -> Result<Server, std::io::Error> {
+    pub fn new(
+        addr: SocketAddr,
+        shutdown: impl Future<Item = (), Error = ()> + Send + 'static,
+    ) -> Result<Server, std::io::Error> {
         let sock = UdpSocket::bind(&addr)?;
+        let addr = sock.local_addr()?;
         let sock = UdpFramed::new(sock, Codec);
         let (chan_send, chan_recv) = unbounded();
         let (sock_send, sock_recv) = sock.split();
-        let (stop_send, stop_recv) = channel();
         Ok(Server {
             addr,
             chan_recv,
             chan_send,
             peers: HashSet::new(),
+            queue_timeout: Duration::from_secs(5),
             queued_messages: HashMap::new(),
             routes: HashMap::new(),
             send_peer_bye: true,
             sock_recv,
             sock_send_fut: Some(Box::new(ok(sock_send))),
-            stop_recv,
-            stop_send,
+            shutdown: Box::new(shutdown),
             tasks: HashMap::new(),
         })
     }
 
     /// Creates a new server listening on the default port (51441).
     pub fn new_from_defaults() -> Result<Server, std::io::Error> {
-        Server::new_from_port(51441)
-    }
-
-    /// Creates a new server listening on the given port.
-    pub fn new_from_port(port: u16) -> Result<Server, std::io::Error> {
-        Server::new(SocketAddr::from(([0u8; 16], port)))
+        Server::new(([0; 16], 51441).into(), empty())
     }
 
     /// Adds a peer to ask for tasks from.
@@ -123,14 +116,17 @@ impl Server {
         trace!("Got frame {:?}", frame);
         match frame {
             Frame::PeerHello => {
+                debug_assert_ne!(peer, self.addr);
                 if self.peers.insert(peer) {
                     self.and_then_send_and_flush(Frame::PeerHello, peer);
                 }
             }
             Frame::PeerBye => {
+                debug_assert_ne!(peer, self.addr);
                 drop(self.peers.remove(&peer));
             }
             Frame::TaskHello(hops, task) => {
+                debug_assert_ne!(peer, self.addr);
                 if self
                     .routes
                     .get(&task)
@@ -150,6 +146,7 @@ impl Server {
                 }
             }
             Frame::FindTask(task) => {
+                debug_assert_ne!(peer, self.addr);
                 if let Some((hops, _)) = self.routes.get(&task).cloned() {
                     self.and_then_send_and_flush(Frame::TaskHello(hops + 1, task), peer);
                 }
@@ -185,7 +182,7 @@ impl Server {
             self.and_then_send_and_flush(Frame::Message(from, to, msg_type, data), peer);
         } else {
             self.broadcast(Frame::FindTask(to));
-            let deadline = Instant::now() + Duration::from_secs(5); // TODO: Make it configurable.
+            let deadline = Instant::now() + self.queue_timeout;
             self.queued_messages.entry(to).or_default().push((
                 Delay::new(deadline),
                 from,
@@ -200,6 +197,12 @@ impl Server {
     /// If this is `true`, dropping the Server will perform a *blocking* UDP send.
     pub fn set_send_peer_bye(&mut self, send_peer_bye: bool) {
         self.send_peer_bye = send_peer_bye;
+    }
+
+    /// Sets the amount of time a message can spend in the message queue while waiting to find a
+    /// peer that can route to it. (Default 5 seconds.)
+    pub fn set_queue_timeout(&mut self, queue_timeout: Duration) {
+        self.queue_timeout = queue_timeout;
     }
 
     /// Spawns a task, returning a handle that can be used to refer to it.
@@ -225,12 +228,36 @@ impl Server {
     }
 }
 
+impl Debug for Server {
+    fn fmt(&self, fmt: &mut Formatter) -> FmtResult {
+        fmt.debug_struct("Server")
+            .field("addr", &self.addr)
+            .field("peers", &self.peers)
+            .field("queue_timeout", &self.queue_timeout)
+            .field("queued_messages", &self.queued_messages)
+            .field("routes", &self.routes)
+            .field("send_peer_bye", &self.send_peer_bye)
+            .field("tasks", &self.tasks)
+            .finish()
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.broadcast(Frame::PeerBye);
+        let fut = replace(&mut self.sock_send_fut, None);
+        if let Err(err) = fut.wait() {
+            error!("While dropping a stahlnet::Server, {}", err);
+        }
+    }
+}
+
 impl Future for Server {
     type Item = ();
     type Error = Error;
 
     fn poll(&mut self) -> Result<Async<()>, Error> {
-        match self.stop_recv.poll() {
+        match self.shutdown.poll() {
             Ok(Async::Ready(())) => return Ok(Async::Ready(())),
             Ok(Async::NotReady) => {}
             Err(_) => {}
@@ -266,7 +293,20 @@ impl Future for Server {
             }
         }
 
-        // TODO: Clear stale queued messages.
+        for (_, queue) in self.queued_messages.iter_mut() {
+            // TODO: Once rust-lang/rust#43244 lands, this should use Vec::drain_filter.
+            let mut i = 0;
+            while i < queue.len() {
+                let (delay, _, _, _) = &mut queue[i];
+                if let Ok(Async::NotReady) = delay.poll() {
+                    i += 1;
+                } else {
+                    drop(queue.remove(i));
+                }
+            }
+        }
+
+        self.queued_messages.retain(|_, queue| !queue.is_empty());
 
         Ok(Async::NotReady)
     }

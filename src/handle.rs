@@ -19,10 +19,21 @@ impl TaskHandle {
     }
 
     /// Sends a message.
-    pub fn send(&self, to: TaskID, msg_type: MessageTypeID, data: Vec<u8>) -> Result<(), ()> {
+    pub fn send_message(
+        &self,
+        to: TaskID,
+        msg_type: MessageTypeID,
+        data: Vec<u8>,
+    ) -> Result<(), ()> {
         self.send
             .unbounded_send(Frame::Message(self.id, to, msg_type, data))
             .map_err(drop)
+    }
+}
+
+impl Drop for TaskHandle {
+    fn drop(&mut self) {
+        drop(self.send.unbounded_send(Frame::TaskBye(self.id)));
     }
 }
 

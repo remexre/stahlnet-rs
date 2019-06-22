@@ -10,11 +10,13 @@ version = "0.1.0"
 
 [dependencies]
 bytes = "0.4.12"
-derivative = "1.0.2"
 derive_more = "0.15.0"
 futures = "0.1.27"
-libremexre = { features = ["futures", "log"], version = "0.1.11" }
+libremexre = { features = ["futures", "log"], version = "0.1.12" }
 log = "0.4.6"
 rand = "0.6.5"
 tokio = "0.1.21"
 tokio-timer = "0.2.11"
+
+[dev-dependencies]
+pretty_assertions = "0.6.1"

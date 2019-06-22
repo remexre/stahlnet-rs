@@ -35,6 +35,8 @@ mod codec;
 mod frame;
 mod handle;
 mod server;
+#[cfg(test)]
+mod tests;
 mod types;
 
 pub use crate::{handle::TaskHandle, server::Server, types::*};
