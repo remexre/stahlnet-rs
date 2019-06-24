@@ -1,8 +1,14 @@
 all: check doc build test
 build:
 	cargo build --all
-build-release:
-	cargo build --all --release
+build-dist:
+	mkdir -p target/dist
+	cd relay && cargo build --release --no-default-features
+	cp target/release/stahlnet-relay target/dist/stahlnet-relay-lite
+	cd relay && cargo build --release --no-default-features --features nogui
+	cp target/release/stahlnet-relay target/dist/stahlnet-relay-nogui
+	cd relay && cargo build --release
+	cp target/release/stahlnet-relay target/dist/stahlnet-relay
 check:
 	cargo check --all
 doc:
@@ -13,4 +19,4 @@ test:
 	cargo test --all --no-default-features -- --test-threads=1
 watch:
 	cargo watch -s $(MAKE)
-.PHONY: all build build-release check doc test
+.PHONY: all build build-dist check doc test
