@@ -18,7 +18,10 @@ deploy:
     branch: master
 - provider: releases
   api_key: $GITHUB_TOKEN
-  file: target/release/stahlnet-relay
+  file:
+  - target/dist/stahlnet-relay-lite
+  - target/dist/stahlnet-relay-nogui
+  - target/dist/stahlnet-relay
   on:
     tags: true
   skip_cleanup: true

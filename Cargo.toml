@@ -10,7 +10,7 @@ homepage = "https://github.com/remexre/stahlnet-rs"
 license = "Apache-2.0/MIT"
 name = "stahlnet"
 repository = "https://github.com/remexre/stahlnet-rs"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 bytes = "0.4.12"
