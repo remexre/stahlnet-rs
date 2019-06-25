@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["Error","An error deserializing a datagram received from the network."]],"struct":[["MessageTypeID","The ID of a message type. See here."],["Server","A network listener for the StahlNet server, plus some number of outgoing connections."],["TaskHandle","A handle to the StahlNet server for communicating with it."],["TaskID","The ID of a task."]]});
